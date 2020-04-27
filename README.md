@@ -2,6 +2,15 @@
 
 An alertmanager receiver that only create notifications & tickets when an previously known alert stops reporting.
 
+## Notifier support matrix
+
+| Product   | Supported API |
+|-----------|:-------------:|
+| Slack     |               |
+| Pagerduty |               |
+
+Feel free to add any other notifier to this list, PR are open.
+
 ## Quickstart
 
 Deadman-receiver should be deployed next to its alertmanager.
@@ -49,5 +58,14 @@ Be warned that deadman-receiver does not persist already known alerts through re
 So there's still a chance of missing the loss of a watchdog signal after a restart. Feel free to submit a PR to add any sort of persistence (clustering, datastore, ...) if you need it.
 
 ## Configuration
+
+Everything is controlled by ENV vars, there's no config file (at the moment)
+
+### General config
+
+### Slack config
+
+### PagerDuty config
+
 
 ## Details
