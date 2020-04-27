@@ -1,0 +1,13 @@
+.DS_Store
+.vscode
+.idea
+.env
+*~
+*.test
+*.out
+
+gin-bin
+debug
+vendor
+
+alertmanager-deadman-receiver
