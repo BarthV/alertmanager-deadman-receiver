@@ -1,2 +1,2 @@
-# alertmanager-watchdog-receiver
-An alertmanager receiver that only create events when an previously known alert stops reporting.
+# alertmanager-deadman-notifier
+An alertmanager receiver that only create notifications & tickets when an previously known alert stops reporting.

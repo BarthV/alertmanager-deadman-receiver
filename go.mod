@@ -1,4 +1,4 @@
-module github.com/barthv/alertmanager-watchdog-receiver
+module github.com/barthv/alertmanager-deadman-receiver
 
 go 1.14
 
