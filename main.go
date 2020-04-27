@@ -95,7 +95,6 @@ func webhookHandler(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"status": "ok"})
-	return
 }
 
 func setupRouter() *gin.Engine {
@@ -122,10 +121,8 @@ func setupRouter() *gin.Engine {
 func expiryCheckerRoutine(interval time.Duration) {
 	checkExpiryTicker := time.NewTicker(interval)
 	for {
-		select {
-		case <-checkExpiryTicker.C:
-			knownAlerts.checkAlertsExpiry()
-		}
+		<-checkExpiryTicker.C
+		knownAlerts.checkAlertsExpiry()
 	}
 }
 
@@ -145,5 +142,8 @@ func main() {
 	r := setupRouter()
 	go expiryCheckerRoutine(conf.InternalChkInterval)
 
-	r.Run(fmt.Sprintf(":%d", conf.Port))
+	err := r.Run(fmt.Sprintf(":%d", conf.Port))
+	if err != nil {
+		log.Fatalf("Could not start webserver: %s", err.Error())
+	}
 }
