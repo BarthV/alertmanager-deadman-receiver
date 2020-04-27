@@ -5,7 +5,7 @@ An alertmanager receiver that only create notifications & tickets when an previo
 ## Notifier support matrix
 
 | Product   | Supported API |
-|-----------|:-------------:|
+| --------- | ------------- |
 | Slack     |               |
 | Pagerduty |               |
 
@@ -55,13 +55,18 @@ On Alertmanager, route this watchdog alert to the deadman-receiver
 On Deadman-receiver, configure your notification endpoints in ENV.
 
 Be warned that deadman-receiver does not persist already known alerts through restart.
-So there's still a chance of missing the loss of a watchdog signal after a restart. Feel free to submit a PR to add any sort of persistence (clustering, datastore, ...) if you need it.
+So there's still a chance of missing the loss of a watchdog signal after a restart. Feel free to submit a PR to add any sort of persistence (clustering, gossiping, datastore, ...) if you need it.
 
 ## Configuration
 
 Everything is controlled by ENV vars, there's no config file (at the moment)
 
 ### General config
+
+| ENV                   | Default       | Comment                       |
+| --------------------- | ------------- | ----------------------------- |
+| EXPIRE_DURATION       | 30m           | Watchdogs alerts that are not refreshed within this duration are notified |
+| INTERNAL_CHK_INTERVAL | 1m            | Internal expiry check routine period |
 
 ### Slack config
 
