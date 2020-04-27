@@ -22,64 +22,64 @@ type config struct {
 	SlackIcon           string        `env:"SLACK_ICON" envDefault:":monkey_face:"`
 }
 
-type watchdogAlert struct {
+type watchedAlert struct {
 	Alert    template.Alert
 	ExpireAt time.Time
 }
 
-func (wa *watchdogAlert) resetExpiryDate() {
+func (wa *watchedAlert) resetExpiryDate() {
 	wa.ExpireAt = time.Now().Add(conf.ExpireDuration)
 }
 
-func (wa *watchdogAlert) expired() bool {
+func (wa *watchedAlert) expired() bool {
 	return time.Now().After(wa.ExpireAt)
 }
 
-type watchdogAlerts struct {
-	Alerts map[string]*watchdogAlert
+type watchedAlerts struct {
+	Alerts map[string]*watchedAlert
 }
 
-func (wdAlerts *watchdogAlerts) checkAlertsExpiry() {
-	for _, wdAlert := range wdAlerts.Alerts {
-		fp := wdAlert.Alert.Fingerprint
-		if wdAlert.expired() {
-			log.Printf("Watchdog %s has expired, raising a watchdog alarm !", fp)
+func (wAlerts *watchedAlerts) checkAlertsExpiry() {
+	for _, wAlert := range wAlerts.Alerts {
+		fp := wAlert.Alert.Fingerprint
+		if wAlert.expired() {
+			log.Printf("Alert %s has expired and is now considered missing, raising an alarm !", fp)
 			// Send signal & create a notification !!
-			delete(wdAlerts.Alerts, fp)
+			delete(wAlerts.Alerts, fp)
 		}
 	}
 }
 
 var (
-	receivedAlerts = watchdogAlerts{
-		Alerts: map[string]*watchdogAlert{},
+	knownAlerts = watchedAlerts{
+		Alerts: map[string]*watchedAlert{},
 	}
 	conf = config{}
 )
 
-func watchdogHandler(c *gin.Context) {
+func webhookHandler(c *gin.Context) {
 	// Only accept well formated json using alertmanager own format
-	var alertsData template.Data
-	if c.Bind(&alertsData) != nil {
-		log.Println("Payload format is not valid. Skipping event")
+	var webhookData template.Data
+	if c.Bind(&webhookData) != nil {
+		log.Println("Webhook payload format invalid. Skipping event")
 		c.JSON(http.StatusBadRequest, gin.H{"status": "error", "reason": "payload-format-error"})
 		return
 	}
 
 	// Data Validation
 	// Don't process Alertmanager webhook events that are not firing events
-	if alertsData.Status != "firing" {
-		log.Println("Received webhook event status is not firing. Skipping event")
+	if webhookData.Status != "firing" {
+		log.Println("Received webhook status is not firing. Skipping event")
 		c.JSON(http.StatusBadRequest, gin.H{"status": "error", "reason": "webhook-not-firing"})
 		return
 	}
 
 	// Processing alerts
 	// There might be multiple alerts included in the webhook event
-	for _, alert := range alertsData.Alerts {
+	for _, alert := range webhookData.Alerts {
 		fp := alert.Fingerprint
 
-		if wdAlert, ok := receivedAlerts.Alerts[fp]; ok {
+		if wdAlert, ok := knownAlerts.Alerts[fp]; ok {
 			// If the alert is already known, just reset the expiry date
 			log.Printf("Refreshing alert %s expiry", fp)
 			wdAlert.resetExpiryDate()
@@ -87,7 +87,7 @@ func watchdogHandler(c *gin.Context) {
 			// else, register the new alert
 			log.Printf("Registering new alert %s", fp)
 			expiry := time.Now().Add(conf.ExpireDuration)
-			receivedAlerts.Alerts[fp] = &watchdogAlert{
+			knownAlerts.Alerts[fp] = &watchedAlert{
 				Alert:    alert,
 				ExpireAt: expiry,
 			}
@@ -108,31 +108,31 @@ func setupRouter() *gin.Engine {
 	r := gin.New()
 	r.Use(gin.Logger())
 	r.Use(gin.Recovery())
-	log.SetPrefix("[WATCHDOG] ")
+	log.SetPrefix("[DEADMAN] ")
 
 	r.GET("/ping", func(c *gin.Context) {
 		c.String(http.StatusOK, "pong")
 	})
 
-	r.POST("/watchdog", watchdogHandler)
+	r.POST("/webhook", webhookHandler)
 
 	return r
 }
 
-func watchdogRoutine(interval time.Duration) {
+func expiryCheckerRoutine(interval time.Duration) {
 	checkExpiryTicker := time.NewTicker(interval)
 	for {
 		select {
 		case <-checkExpiryTicker.C:
-			receivedAlerts.checkAlertsExpiry()
+			knownAlerts.checkAlertsExpiry()
 		}
 	}
 }
 
 func printConfig() {
-	log.Println("Starting Alertmanager Watchdog Receiver")
-	log.Printf("Missing watchdog is notified after %s", conf.ExpireDuration)
-	log.Printf("Internal check routine period is %s", conf.InternalChkInterval)
+	log.Println("Starting Alertmanager Deadman Receiver")
+	log.Printf("Any missing alert is notified after %s not firing", conf.ExpireDuration)
+	log.Printf("Internal check routine interval is %s", conf.InternalChkInterval)
 	log.Printf("Listening on port %d", conf.Port)
 }
 
@@ -141,9 +141,9 @@ func main() {
 		log.Fatal("Unable to parse envs: ", err)
 	}
 
-	r := setupRouter()
 	printConfig()
-	go watchdogRoutine(conf.InternalChkInterval)
+	r := setupRouter()
+	go expiryCheckerRoutine(conf.InternalChkInterval)
 
 	r.Run(fmt.Sprintf(":%d", conf.Port))
 }
