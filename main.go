@@ -15,6 +15,14 @@ import (
 	"github.com/slack-go/slack"
 )
 
+var (
+	knownAlerts = watchedAlerts{
+		Alerts: map[string]*watchedAlert{},
+	}
+	conf     = config{}
+	slackAPI = &slack.Client{}
+)
+
 type config struct {
 	ExpireDuration      time.Duration `env:"EXPIRE_DURATION" envDefault:"30m"`
 	InternalChkInterval time.Duration `env:"INTERNAL_CHK_INTERVAL" envDefault:"1m"`
@@ -82,21 +90,16 @@ func (was watchedAlerts) checkAlertsExpiry() {
 	for id, alert := range knownAlerts.Alerts {
 		if alert.expired() {
 			log.Printf("Alert %s has expired and is now considered missing, triggering notifiers", id)
-			alert.sendSlackNotification()
-			alert.sendPagerdutyNotification()
+			if conf.SlackToken != "" {
+				alert.sendSlackNotification()
+			}
+			if conf.PagerdutyToken != "" {
+				alert.sendPagerdutyNotification()
+			}
 			delete(knownAlerts.Alerts, id)
 		}
 	}
 }
-
-var (
-	knownAlerts = watchedAlerts{
-		Alerts: map[string]*watchedAlert{},
-	}
-	conf     = config{}
-	slackAPI = &slack.Client{}
-	pdAPI    = &pagerduty.Client{}
-)
 
 func webhookHandler(c *gin.Context) {
 	// Only accept well formated json using alertmanager own format
@@ -179,7 +182,7 @@ func setupSlackNotifier() {
 		// TODO: support paginated channels list
 		channels, _ := slackAPI.GetChannels(false)
 		for _, channel := range channels {
-			if strings.ToLower(channel.Name) == strings.ToLower(conf.SlackChannel) {
+			if strings.EqualFold(channel.Name, conf.SlackChannel) {
 				conf.SlackChannelID = channel.ID
 			}
 		}
@@ -194,8 +197,8 @@ func setupSlackNotifier() {
 
 func setupPagerdutyNotifier() {
 	if conf.PagerdutyToken != "" {
-		pdAPI = pagerduty.NewClient(conf.PagerdutyToken)
-
+		// There's nothing to do.
+		// It seems that we don't need any global session when using service token API.
 		log.Println("Pagerduty notifier initialized")
 	}
 }
