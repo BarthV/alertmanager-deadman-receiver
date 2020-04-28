@@ -99,7 +99,7 @@ Create a dedicated Pagerduty service and generate an APIv2 token for it. Then ad
 
 ### Endpoints
 
-* `/webhook` - alertmanager target URL where to POST alerts webhooks to be monitored
+* `/webhook` - alertmanager webhook receiver URL. All monitored watchdogs should be routed here.
 * `/ping` - liveness endpoint
 
 There's no internal metrics at the moment. (PR are welcome)
