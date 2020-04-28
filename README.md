@@ -1,6 +1,6 @@
-# alertmanager-deadman-notifier
+# alertmanager-deadman-receiver
 
-An alertmanager receiver that only create notifications & tickets when an previously known alert stops reporting.
+An alertmanager's webhooks receiver that only create notifications & tickets when an previously known alert stops reporting.
 
 ## Notifier support matrix
 
