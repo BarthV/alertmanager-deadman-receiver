@@ -42,9 +42,7 @@ On Alertmanager, route this watchdog alert to the deadman-receiver
           - match:
               alertname: Watchdog
               receiver: deadman-receiver
-
-[...]
-
+        # [...]
         receivers:
         - name: deadman-receiver
           webhook_configs:
