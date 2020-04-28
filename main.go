@@ -1,14 +1,18 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
+	"github.com/PagerDuty/go-pagerduty"
 	"github.com/caarlos0/env"
 	"github.com/gin-gonic/gin"
 	"github.com/prometheus/alertmanager/template"
+	"github.com/slack-go/slack"
 )
 
 type config struct {
@@ -16,10 +20,11 @@ type config struct {
 	InternalChkInterval time.Duration `env:"INTERNAL_CHK_INTERVAL" envDefault:"1m"`
 	Debug               bool          `env:"DEBUG"`
 	Port                int           `env:"PORT" envDefault:"8080"`
-	SlackURL            string        `env:"SLACK_URL"`
-	SlackChannel        string        `env:"SLACK_CHANNEL" envDefault:"#general"`
-	SlackUsername       string        `env:"SLACK_USERNAME" envDefault:"Watchdog Monitor"`
-	SlackIcon           string        `env:"SLACK_ICON" envDefault:":monkey_face:"`
+	PagerdutyToken      string        `env:"PD_TOKEN" envDefault:""`
+	SlackToken          string        `env:"SLACK_TOKEN" envDefault:""`
+	SlackChannel        string        `env:"SLACK_CHANNEL" envDefault:"general"`
+	SlackDisplayName    string        `env:"SLACK_DISPLAYNAME" envDefault:"Deadman Alert"`
+	SlackChannelID      string
 }
 
 type watchedAlert struct {
@@ -35,17 +40,51 @@ func (wa *watchedAlert) expired() bool {
 	return time.Now().After(wa.ExpireAt)
 }
 
+func (wa *watchedAlert) sendSlackNotification() {
+	_, _, err := slackAPI.PostMessage(conf.SlackChannelID, slack.MsgOptionText(fmt.Sprintf("Alert %s expired !", wa.Alert.Fingerprint), false))
+	if err != nil {
+		fmt.Printf("Error sending alert %s slack notification: %s", wa.Alert.Fingerprint, err.Error())
+	}
+}
+
+func (wa *watchedAlert) sendPagerdutyNotification() {
+	prettyAlert, err := json.MarshalIndent(wa.Alert, "", "    ")
+	if err != nil {
+		log.Fatalf("Impossible to format alert %s as json string: %s", wa.Alert.Fingerprint, err.Error())
+	}
+
+	labels := "A MONITORED WATCHDOG ALERT IS MISSING !\n\nAlert labels:\n"
+	for i, labelName := range wa.Alert.Labels.SortedPairs().Names() {
+		labelValue := wa.Alert.Labels.SortedPairs().Values()[i]
+		labels = labels + fmt.Sprintf("%s = %s", labelName, labelValue) + "\n"
+	}
+
+	message := labels + "\n" + string(prettyAlert)
+
+	event := pagerduty.Event{
+		Type:        "trigger",
+		ServiceKey:  conf.PagerdutyToken,
+		Description: "Watchdog monitored alert is missing for too long",
+		Details:     message,
+	}
+
+	_, err = pagerduty.CreateEvent(event)
+	if err != nil {
+		log.Printf("Error sending alert %s as pagerduty event: %s", wa.Alert.Fingerprint, err.Error())
+	}
+}
+
 type watchedAlerts struct {
 	Alerts map[string]*watchedAlert
 }
 
-func (wAlerts *watchedAlerts) checkAlertsExpiry() {
-	for _, wAlert := range wAlerts.Alerts {
-		fp := wAlert.Alert.Fingerprint
-		if wAlert.expired() {
-			log.Printf("Alert %s has expired and is now considered missing, raising an alarm !", fp)
-			// Send signal & create a notification !!
-			delete(wAlerts.Alerts, fp)
+func (was watchedAlerts) checkAlertsExpiry() {
+	for id, alert := range knownAlerts.Alerts {
+		if alert.expired() {
+			log.Printf("Alert %s has expired and is now considered missing, triggering notifiers", id)
+			alert.sendSlackNotification()
+			alert.sendPagerdutyNotification()
+			delete(knownAlerts.Alerts, id)
 		}
 	}
 }
@@ -54,7 +93,9 @@ var (
 	knownAlerts = watchedAlerts{
 		Alerts: map[string]*watchedAlert{},
 	}
-	conf = config{}
+	conf     = config{}
+	slackAPI = &slack.Client{}
+	pdAPI    = &pagerduty.Client{}
 )
 
 func webhookHandler(c *gin.Context) {
@@ -126,6 +167,44 @@ func expiryCheckerRoutine(interval time.Duration) {
 	}
 }
 
+func setupSlackNotifier() {
+	if conf.SlackToken != "" {
+		slackAPI = slack.New(conf.SlackToken)
+
+		_, err := slackAPI.AuthTest()
+		if err != nil {
+			log.Fatalf("Impossible to initialize Slack client: %s", err.Error())
+		}
+
+		// TODO: support paginated channels list
+		channels, _ := slackAPI.GetChannels(false)
+		for _, channel := range channels {
+			if strings.ToLower(channel.Name) == strings.ToLower(conf.SlackChannel) {
+				conf.SlackChannelID = channel.ID
+			}
+		}
+
+		if conf.SlackChannelID == "" {
+			log.Fatalf("Impossible to find target Slack channel: %s", conf.SlackChannel)
+		}
+
+		log.Printf("Slack notifier initialized on channel %s (%s)", conf.SlackChannel, conf.SlackChannelID)
+	}
+}
+
+func setupPagerdutyNotifier() {
+	if conf.PagerdutyToken != "" {
+		pdAPI = pagerduty.NewClient(conf.PagerdutyToken)
+
+		log.Println("Pagerduty notifier initialized")
+	}
+}
+
+func setupNotifiers() {
+	setupSlackNotifier()
+	setupPagerdutyNotifier()
+}
+
 func printConfig() {
 	log.Println("Starting Alertmanager Deadman Receiver")
 	log.Printf("Any missing alert is notified after %s not firing", conf.ExpireDuration)
@@ -139,6 +218,7 @@ func main() {
 	}
 
 	printConfig()
+	setupNotifiers()
 	r := setupRouter()
 	go expiryCheckerRoutine(conf.InternalChkInterval)
 

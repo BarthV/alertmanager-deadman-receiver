@@ -4,10 +4,10 @@ An alertmanager receiver that only create notifications & tickets when an previo
 
 ## Notifier support matrix
 
-| Product   | Supported API |
-| --------- | ------------- |
-| Slack     |               |
-| Pagerduty |               |
+| Product   | Supported API         |
+| --------- | --------------------- |
+| Slack     | Slack app + Block API |
+| Pagerduty | v2                    |
 
 Feel free to add any other notifier to this list, PR are open.
 
@@ -63,14 +63,43 @@ Everything is controlled by ENV vars, there's no config file (at the moment)
 
 ### General config
 
-| ENV                   | Default       | Comment                       |
-| --------------------- | ------------- | ----------------------------- |
+| ENV                   | Default       | Comment                                                                   |
+| --------------------- | ------------- | ------------------------------------------------------------------------- |
 | EXPIRE_DURATION       | 30m           | Watchdogs alerts that are not refreshed within this duration are notified |
-| INTERNAL_CHK_INTERVAL | 1m            | Internal expiry check routine period |
+| INTERNAL_CHK_INTERVAL | 1m            | Internal expiry check routine period                                      |
 
 ### Slack config
 
+Slack notifier is enabled once you specify SLACK_URL.
+
+| ENV               | Default         | Comment                                                  |
+| ----------------- | --------------- | -------------------------------------------------------- |
+| SLACK_TOKEN       | ""              | Slack app Token                                          |
+| SLACK_CHANNEL     | "general"       | Where the notification will be posted on Slack without # |
+| SLACK_DISPLAYNAME | "Deadman Alert" | Name of the user that will be displayed                  |
+| SLACK_ICON        | ":skull:"       | Icon used in the notification                            |
+
+Create a custom slack app in your with the appropriate permissions, and use its API token in this config:
+
+* `channels:read`
+* `chat:write`
+* `chat:write.public`
+
 ### PagerDuty config
 
+Pagerduty notifier is enabled once you specify PD_TOKEN.
+
+| ENV      | Default | Comment                      |
+| -------- | ------- | ---------------------------- |
+| PD_TOKEN | ""      | Pagerduty service API token  |
+
+Create a dedicated Pagerduty service and generate an APIv2 token for it. Then add it in this config.
 
 ## Details
+
+### Endpoints
+
+* `/webhook` - alertmanager target URL where to POST alerts webhooks to be monitored
+* `/ping` - liveness endpoint
+
+There's no internal metrics at the moment. (PR are welcome)
