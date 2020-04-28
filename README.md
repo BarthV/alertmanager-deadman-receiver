@@ -63,19 +63,17 @@ Everything is controlled by ENV vars, there's no config file (at the moment)
 
 | ENV                   | Default       | Comment                                                                   |
 | --------------------- | ------------- | ------------------------------------------------------------------------- |
-| EXPIRE_DURATION       | 30m           | Watchdogs alerts that are not refreshed within this duration are notified |
+| EXPIRE_DURATION       | 1h            | Watchdogs alerts that are not refreshed within this duration are notified |
 | INTERNAL_CHK_INTERVAL | 1m            | Internal expiry check routine period                                      |
 
 ### Slack config
 
-Slack notifier is enabled once you specify SLACK_URL.
+Slack notifier is enabled once you specify SLACK_URL. Display name will be the one set on your slack APP settings.
 
 | ENV               | Default         | Comment                                                  |
 | ----------------- | --------------- | -------------------------------------------------------- |
 | SLACK_TOKEN       | ""              | Slack app Token                                          |
 | SLACK_CHANNEL     | "general"       | Where the notification will be posted on Slack without # |
-| SLACK_DISPLAYNAME | "Deadman Alert" | Name of the user that will be displayed                  |
-| SLACK_ICON        | ":skull:"       | Icon used in the notification                            |
 
 Create a custom slack app in your with the appropriate permissions, and use its API token in this config:
 

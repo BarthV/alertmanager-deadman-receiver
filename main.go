@@ -24,14 +24,13 @@ var (
 )
 
 type config struct {
-	ExpireDuration      time.Duration `env:"EXPIRE_DURATION" envDefault:"30m"`
+	ExpireDuration      time.Duration `env:"EXPIRE_DURATION" envDefault:"1h"`
 	InternalChkInterval time.Duration `env:"INTERNAL_CHK_INTERVAL" envDefault:"1m"`
 	Debug               bool          `env:"DEBUG"`
 	Port                int           `env:"PORT" envDefault:"8080"`
 	PagerdutyToken      string        `env:"PD_TOKEN" envDefault:""`
 	SlackToken          string        `env:"SLACK_TOKEN" envDefault:""`
 	SlackChannel        string        `env:"SLACK_CHANNEL" envDefault:"general"`
-	SlackDisplayName    string        `env:"SLACK_DISPLAYNAME" envDefault:"Deadman Alert"`
 	SlackChannelID      string
 }
 
