@@ -49,7 +49,45 @@ func (wa *watchedAlert) expired() bool {
 }
 
 func (wa *watchedAlert) sendSlackNotification() {
-	_, _, err := slackAPI.PostMessage(conf.SlackChannelID, slack.MsgOptionText(fmt.Sprintf("Alert %s expired !", wa.Alert.Fingerprint), false))
+	prettyAlert, err := json.MarshalIndent(wa.Alert, "", "    ")
+	if err != nil {
+		log.Fatalf("Impossible to format alert %s as json string: %s", wa.Alert.Fingerprint, err.Error())
+	}
+
+	labels := ""
+	for i, labelName := range wa.Alert.Labels.SortedPairs().Names() {
+		labelValue := wa.Alert.Labels.SortedPairs().Values()[i]
+		labels = labels + "- " + fmt.Sprintf("%s = %s", labelName, labelValue) + "\n"
+	}
+
+	msgHeaderText := slack.NewTextBlockObject(
+		slack.MarkdownType,
+		":skull: *This is an alert !* :skull: \nA watchdog alert has not been refreshed for too long.\nPlease check monitoring stack status.",
+		false,
+		false,
+	)
+
+	msgContentText := slack.NewTextBlockObject(
+		slack.MarkdownType,
+		"*Lost watchdog labels:*\n```"+labels+"```",
+		false,
+		false,
+	)
+
+	msgHeader := slack.NewSectionBlock(msgHeaderText, nil, nil)
+	msgContent := slack.NewSectionBlock(msgContentText, nil, nil)
+
+	msgAttachment := slack.Attachment{
+		Title: "Lost alert full description",
+		Text:  "```" + string(prettyAlert) + "```",
+		Color: "#a10606",
+	}
+	_, _, _, err = slackAPI.SendMessage(
+		conf.SlackChannelID,
+		slack.MsgOptionIconEmoji(":skull:"),
+		slack.MsgOptionBlocks(msgHeader, msgContent),
+		slack.MsgOptionAttachments(msgAttachment),
+	)
 	if err != nil {
 		fmt.Printf("Error sending alert %s slack notification: %s", wa.Alert.Fingerprint, err.Error())
 	}
@@ -198,7 +236,7 @@ func setupSlackNotifier() {
 func setupPagerdutyNotifier() {
 	if conf.PagerdutyToken != "" {
 		// There's nothing to do.
-		// It seems that we don't need any global session when using service token API.
+		// It seems that we don't need any global session when using a PD service token API.
 		log.Println("Pagerduty notifier initialized")
 	}
 }
