@@ -77,7 +77,7 @@ func (wa *watchedAlert) sendSlackNotification() {
 	msgContent := slack.NewSectionBlock(msgContentText, nil, nil)
 
 	msgAttachment := slack.Attachment{
-		Title: "Lost alert full description",
+		Title: "Lost watchdog full description",
 		Text:  "```" + string(prettyAlert) + "```",
 		Color: "#a10606",
 	}
@@ -109,7 +109,7 @@ func (wa *watchedAlert) sendPagerdutyNotification() {
 	event := pagerduty.Event{
 		Type:        "trigger",
 		ServiceKey:  conf.PagerdutyToken,
-		Description: "Watchdog monitored alert is missing for too long",
+		Description: "Watchdog alert is missing for too long",
 		Details:     message,
 	}
 
@@ -257,9 +257,9 @@ func main() {
 		log.Fatal("Unable to parse envs: ", err)
 	}
 
+	r := setupRouter()
 	printConfig()
 	setupNotifiers()
-	r := setupRouter()
 	go expiryCheckerRoutine(conf.InternalChkInterval)
 
 	err := r.Run(fmt.Sprintf(":%d", conf.Port))
