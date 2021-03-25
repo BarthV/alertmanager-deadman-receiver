@@ -18,9 +18,13 @@ jobs:
           args: check
 
       - name: Docker meta
+        id: docker_meta
         uses: crazy-max/ghaction-docker-meta@v1
         with:
           images: barthv/alertmanager-deadman-receiver
+          tag-semver: |
+            {{version}}
+            {{major}}.{{minor}}
 
       - name: Create release on GitHub
         uses: docker://goreleaser/goreleaser:latest
@@ -39,3 +43,5 @@ jobs:
         uses: docker/build-push-action@v2
         with:
           push: true
+          tags: ${{ steps.docker_meta.outputs.tags }}
+          labels: ${{ steps.docker_meta.outputs.labels }}
