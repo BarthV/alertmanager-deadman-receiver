@@ -92,6 +92,23 @@ func (wa *watchedAlert) sendSlackNotification() {
 	}
 }
 
+func publishTestMsg(c *gin.Context) {
+	log.Println("Sending a test notification")
+	wa := watchedAlert{
+		Alert: template.Alert{
+			Status: "test",
+			Labels: template.KV{
+				"TEST":        "this is NOT a real alert",
+				"IGNORE_THIS": "don't panic please !",
+			},
+		},
+		ExpireAt: time.Now(),
+	}
+	wa.sendSlackNotification()
+
+	c.JSON(http.StatusOK, gin.H{"status": "ok"})
+}
+
 func (wa *watchedAlert) sendPagerdutyNotification() {
 	prettyAlert, err := json.MarshalIndent(wa.Alert, "", "    ")
 	if err != nil {
@@ -195,6 +212,7 @@ func setupRouter() *gin.Engine {
 	})
 
 	r.POST("/webhook", webhookHandler)
+	r.POST("/test", publishTestMsg)
 
 	return r
 }
@@ -210,6 +228,7 @@ func expiryCheckerRoutine(interval time.Duration) {
 func setupSlackNotifier() {
 	if conf.SlackToken != "" {
 		slackAPI = slack.New(conf.SlackToken)
+		convParams := slack.GetConversationsParameters{}
 
 		_, err := slackAPI.AuthTest()
 		if err != nil {
@@ -217,8 +236,12 @@ func setupSlackNotifier() {
 		}
 
 		// TODO: support paginated channels list
-		channels, _ := slackAPI.GetChannels(false)
-		for _, channel := range channels {
+		chans, _, err := slackAPI.GetConversations(&convParams)
+		if err != nil {
+			log.Fatalf("Impossible to list Slack channels in workspace: %s", err.Error())
+		}
+
+		for _, channel := range chans {
 			if strings.EqualFold(channel.Name, conf.SlackChannel) {
 				conf.SlackChannelID = channel.ID
 			}
