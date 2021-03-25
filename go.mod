@@ -1,6 +1,6 @@
 module github.com/barthv/alertmanager-deadman-receiver
 
-go 1.14
+go 1.16
 
 require (
 	github.com/PagerDuty/go-pagerduty v1.3.0
